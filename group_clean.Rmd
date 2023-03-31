@@ -1,0 +1,714 @@
+---
+title: "Cleaning Data"
+author: "Manda Egbert, Stephanie, Renasco, Tyler Maull"
+date: "2022-10-17"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+### Loading tidyverse and importing data
+
+The following chunk loads the tidyverse package so we may use the
+commands that come with it. It also imports the Chicago Food Inspections
+data set from the U drive, this is preferable from importing directly
+from an individual Y drive because this file is very large and takes up
+a lot of storage. The raw data is imported to a data set called
+food.inspections.raw to preserve the raw data if it becomes necessary
+later. A new data set called food.inspections is made to differentiate
+between the raw data we will not be adjusting and the data set we will
+be cleaning.
+
+```{r load}
+library(tidyverse)
+#food.inspections <- read.csv("C:/Users/Fangi/OneDrive/Desktop/Stat 220/Group Project/food-inspections.csv")
+
+food.inspections <- read.csv("U:/_MT Student File Area/Shanshan Lv/STAT 220/ChicagoFoodInspections/food-inspections.csv")
+#food.inspections <- read.csv("Y:/Stat 220/Group Project/food-inspections.csv")
+```
+
+### Selecting variables for reduced set
+
+The next chunk of code makes a new data set called
+food.inspections.clean, this data set is where changes made to clean the
+data will be saved. The first change made to the data is to use the
+select functions to only select the most important variables from the
+food.inspections data set that will aid in our research questions. This
+way, the data set we're working with has less variables and is easier to
+digest. Then, we use the head function to display a glimpse of what this
+new data set includes to check that our select function did its job.
+We've opted to filter out inspections before the year of 2015 because
+we'd like our data to be more recent as well as reduce the amount of
+observations that are going to be processed.
+
+```{r Select variables}
+food.inspections.clean <- food.inspections %>%
+  select(AKA.Name, Results, Inspection.ID, Facility.Type, Inspection.Type, Violations, Risk, Zip, Inspection.Date, Latitude, Longitude) %>% 
+  filter(Inspection.Date > 2015/01/01)
+head(food.inspections.clean)
+```
+
+### Check names
+
+Next, we use the name function to see whether our variable names contain
+unnecessary spaces or symbols that need removed. Now that we can see all
+the names, we can conclude there are no unnecessary spaces or symbols to
+remove. The next part of this chunk displays summary statistics so we
+can get an idea of what data types are currently assigned.
+
+```{r Check names and data types}
+names(food.inspections.clean)
+summary(food.inspections.clean)
+```
+
+### Changing data types
+
+This chunk uses the mutate function to change the data type of certain
+variables. This will make it easier to analyze information within each
+variable and make graphs. Most of the variables that needed changed were
+originally characters but would function better as factors because they
+are categories. We also changed the inspection date into a date so that
+we can rearrange its order later.
+
+```{r Data Types}
+#food.inspections.clean %>% 
+  #mutate(Risk = factor(Risk)) %>%
+ # mutate(Results = factor(Results)) %>%
+ # mutate(Facility.Type = factor(Facility.Type)) %>%
+ # mutate(Inspection.Type = factor(Inspection.Type))
+```
+
+### Set NA
+
+This chunk uses mutate and ifelse to test whether each variable contains
+a blank "" and if so, changes it to NA, and if not, keeps the original
+value. This makes it easier for us to exclude NA values later.
+
+```{r}
+food.inspections.clean = food.inspections.clean %>%
+  mutate(Facility.Type=ifelse(Facility.Type=="", NA, Facility.Type)) %>%
+  mutate(AKA.Name=ifelse(AKA.Name=="", NA, AKA.Name)) %>%
+  mutate(Violations=ifelse(Violations=="", NA, Violations)) %>%
+  mutate(Risk=ifelse(Risk=="", NA, Risk))  %>%
+  mutate(Results=ifelse(Results=="", NA, Results)) %>%
+  mutate(Violations=ifelse(Violations==" ", NA, Violations)) %>%
+  mutate(Inspection.Type=ifelse(Inspection.Type=="", NA, Inspection.Type))%>%
+  drop_na()
+```
+
+### Checking Risk for typos
+This chunk creates a bar graph displaying possible values of Risk. We can use this to check for typos. There
+doesn't appear to be any spelling errors.
+```{r Check Risk}
+ggplot(data = food.inspections.clean) +
+  geom_bar(mapping = aes(x=Risk))
+```
+### Check inspection type for typos
+This chunk groups together observations by inspection types and displays
+the number of each type. We use this so we can easily find typos. Where
+we might prefer use a bar graph to easily see each category, we've
+instead chosen to use grouping and count because there are too many
+different types to view this in a bar graph. This command also
+uses na.rm set to TRUE so that we can exclude the missing values.
+Looking at the output, we can see there are many variations of the same
+inspection type, but because of case sensitivity and spelling errors, they
+don't properly group together. We can fix this.
+```{r Find typos}
+food.inspections.clean %>% group_by(Inspection.Type) %>%
+  summarize(n = n(), na.rm=TRUE)
+```
+
+### Fixing Inspection Type typos
+This chunk uses mutate and case_when to fix typos. It includes every
+observation under Inspection Type, those without errors remain the same,
+but those with errors have adjustments made.
+```{r Typos 2}
+food.inspections.clean <-
+  food.inspections.clean %>% mutate(Inspection.Type = case_when(
+    Inspection.Type == "Canvass" ~ "Canvass",
+    Inspection.Type == "Canvass Re-Inspection" ~ "Re-Inspection",
+    Inspection.Type == "Complaint" ~ "Complaint",
+    Inspection.Type == "Complaint-Fire Re-inspection" ~ "Re-Inspection",
+    Inspection.Type == "Complaint Re-Inspection" ~ "Re-Inspection",
+    Inspection.Type == "Consultation" ~ "Consultation",
+    Inspection.Type == "FIRE" ~ "Fire",
+    Inspection.Type == "fire complaint" ~ "Fire",
+    Inspection.Type == "License" ~ "License",
+    Inspection.Type == "License-Task Force" ~ "License",
+    Inspection.Type == "License Re-Inspection" ~ "Re-Inspection",
+    Inspection.Type == "Non-Inspection" ~ "Non-Inspection",
+    Inspection.Type == "Not Ready" ~ "Not Ready",
+    Inspection.Type == "Recent inspection" ~ "Recent Inspection",
+    Inspection.Type == "Recent Inspection" ~ "Recent Inspection",
+    Inspection.Type == "Short Form Complaint" ~ "Complaint",
+    Inspection.Type == "Special Events (Festivals)" ~ "Special Event",
+    Inspection.Type == "Suspected Food Poisoning" ~ "Suspected Food Poisoning",
+    Inspection.Type == "Suspected Food Poisoning Re-inspection" ~ "Re-Inspection",
+    Inspection.Type == "Tag Removal	" ~ "Tag Removal"))
+``` 
+
+### Double check corrections
+This chunk shows us all the inspection types again now that we've made corrections so we can make sure there were no mistakes. 
+```{r Double Check}
+food.inspections.clean %>% group_by(Inspection.Type) %>%
+  summarize(n = n(), na.rm=TRUE)
+```
+
+### Check Facility Type for typos
+
+This chunk groups together observations by facility types and displays
+the number of each type. Like we did with inspection type, we use this so we can easily find typos. This command also uses na.rm set to TRUE so that we can exclude the missing values.
+Looking at the output, we can see there are many variations of the same
+facility type, but because of case sensitivity and spelling errors, they
+don't properly group together. We can fix this.
+
+```{r Find typos 2}
+food.inspections.clean %>% group_by(Facility.Type) %>%
+  summarize(n = n(), na.rm=TRUE)
+```
+
+### Fixing Facility Type typos
+
+This chunk uses mutate and case_when to fix typos. It includes every
+observation under Facility Type, those without errors remain the same,
+but those with errors have adjustments made.
+
+```{r Typos}
+food.inspections.clean <-
+  food.inspections.clean %>% mutate(Facility.Type = case_when(
+Facility.Type == "(convenience store)" ~ "Convenience Store",
+Facility.Type == "(gas station)" ~ "Gas Station",
+Facility.Type == "1005 NURSING HOME	" ~ "1005 Nursing Home",
+Facility.Type == "1023" ~ "1023 Children's Services Facility",
+Facility.Type == "1023-CHILDREN'S SERVICES FACILITY" ~ "1023 Children's Services Facility",
+Facility.Type == "1023 CHILDERN'S SERVICE FACILITY" ~ "1023 Children's Services Facility",
+Facility.Type == "1023 CHILDERN'S SERVICE S FACILITY" ~ "1023 Children's Services Facility",
+Facility.Type == "1023 CHILDERN'S SERVICES FACILITY" ~ "1023 Children's Services Facility",
+Facility.Type == "1023 CHILDREN'S SERVICES FACILITY" ~ "1023 Children's Services Facility",
+Facility.Type == "15 monts to 5 years old" ~ "15 months to 5 y/o",
+Facility.Type == "1584-DAY CARE ABOVE 2 YEARS" ~ "Day Care 2+ y/o",
+Facility.Type == "A-Not-For-Profit Chef Training Program" ~ "Not-For-Profit Chef Training Program",
+Facility.Type == "ADULT DAYCARE" ~ "Adult Daycare",
+Facility.Type == "Adult Family Care Center" ~ "Adult Daycare",
+Facility.Type == "AFTER SCHOOL CARE" ~ "After School Program",
+Facility.Type == "after school program" ~ "After School Program",
+Facility.Type == "AFTER SCHOOL PROGRAM" ~ "After School Program",
+Facility.Type == "Airport Lounge" ~ "Airport Lounge",
+Facility.Type == "ALTERNATIVE SCHOOL" ~ "Alternative School",
+Facility.Type == "Animal Shelter Cafe Permit" ~ "Animal Shelter Cafe",
+Facility.Type == "ART GALLERY" ~ "Art Gallery",
+Facility.Type == "ART GALLERY W/WINE AND BEER" ~ "Art Gallery w/ Wine and Beer",
+Facility.Type == "ASSISSTED LIVING" ~ "Assisted Living",
+Facility.Type == "Assisted Living" ~ "Assisted Living",
+Facility.Type == "ASSISTED LIVING" ~ "Assisted Living",
+Facility.Type == "Assisted Living Senior Care" ~ "Assisted Living",
+Facility.Type == "Bakery" ~ "Bakery",
+Facility.Type == "BAKERY/ RESTAURANT" ~ "Bakery/Restaurant",
+Facility.Type == "BAKERY/DELI" ~ "Bakery/Deli",
+Facility.Type == "BAKERY/GROCERY" ~ "Bakery/Grocery",
+Facility.Type == "bakery/restaurant" ~ "Bakery/Restaurant",
+Facility.Type == "Banquet" ~ "Banquet",
+Facility.Type == "BANQUET" ~ "Banquet",
+Facility.Type == "Banquet Dining" ~ "Banquet",
+Facility.Type == "BANQUET FACILITY" ~ "Banquet",
+Facility.Type == "banquet hall" ~ "Banquet",
+Facility.Type == "Banquet Hall" ~ "Banquet",
+Facility.Type == "BANQUET HALL" ~ "Banquet",
+Facility.Type == "BANQUET HALL/CATERING" ~ "Banquet",
+Facility.Type == "BANQUET ROOM" ~ "Banquet",
+Facility.Type == "Banquet rooms" ~ "Banquet",
+Facility.Type == "Banquet/kitchen" ~ "Banquet",
+Facility.Type == "banquets" ~ "Banquet",
+Facility.Type == "banquets/room service" ~ "Banquet",
+Facility.Type == "bar" ~ "Bar",
+Facility.Type == "BAR" ~ "Bar",
+Facility.Type == "BAR/GRILL" ~ "Bar and Grill",
+Facility.Type == "BEFORE AND AFTER SCHOOL PROGRAM" ~ "Before and After School Program",
+Facility.Type == "BEVERAGE/SILVERWARE WAREHOUSE" ~ "Beverage/Silverware Warehouse",
+Facility.Type == "blockbuster video" ~ "Blockbuster Video",
+Facility.Type == "BOOK STORE" ~ "Book Store",
+Facility.Type == "BOWLING LANES/BANQUETS" ~ "Bowling/Banquet",
+Facility.Type == "BOYS AND GIRLS CLUB" ~ "Boys and Girls Club",
+Facility.Type == "BREWERY" ~ "Brewery",
+Facility.Type == "BREWPUB" ~ "Brewery/Pub",
+Facility.Type == "butcher shop" ~ "Butcher Shop",
+Facility.Type == "BUTCHER SHOP" ~ "Butcher Shop",
+Facility.Type == "CAFE" ~ "Cafe",
+Facility.Type == "CAFE/STORE" ~ "Cafe",
+Facility.Type == "cafeteria" ~ "Cafeteria",
+Facility.Type == "Cafeteria" ~ "Cafeteria",
+Facility.Type == "CAFETERIA" ~ "Cafeteria",
+Facility.Type == "Candy" ~ "Candy",
+Facility.Type == "CANDY MAKER" ~ "Candy",
+Facility.Type == "CANDY SHOP" ~ "Candy",
+Facility.Type == "CANDY STORE" ~ "Candy",
+Facility.Type == "candy/gelato" ~ "Candy/Gelato",
+Facility.Type == "CANDY/GELATO" ~ "Candy/Gelato",
+Facility.Type == "CAR WASH" ~ "Car Wash",
+Facility.Type == "CAT/LIQUOR" ~ "Cat/Liquor",
+Facility.Type == "CATERED EVENTS" ~ "Catering",
+Facility.Type == "Catering" ~ "Catering",
+Facility.Type == "Catering and Wholesale" ~ "Catering/Wholesale",
+Facility.Type == "CATERING/CAFE" ~ "Catering",
+Facility.Type == "CELL PHONE STORE" ~ "Cell Phone Store",
+Facility.Type == "CHARITY AID KITCHEN" ~ "Charity Aid Kitchen",
+Facility.Type == "CHARTER SCHOOL" ~ "Charter School",
+Facility.Type == "CHARTER SCHOOL CAFETERIA" ~ "Charter School",
+Facility.Type == "CHARTER SCHOOL/CAFETERIA" ~ "Charter School",
+Facility.Type == "CHICAGO PARK DISTRICT" ~ "Chicago Park District",
+Facility.Type == "CHILDERN'S SERVICE FACILITY" ~ "Children's Service Facility",
+Facility.Type == "CHILDERN'S SERVICES FACILITY" ~ "Children's Service Facility",
+Facility.Type == "CHILDERN ACTIVITY FACILITY" ~ "Children's Activity Facility",
+Facility.Type == "Children's Services Facility" ~ "Children's Service Facility",
+Facility.Type == "CHILDRENS SERVICES FACILITY" ~ "Children's Service Facility",
+Facility.Type == "CHINESE HERBS" ~ "Chinese Herbs",
+Facility.Type == "Church" ~ "Church",
+Facility.Type == "CHURCH" ~ "Church",
+Facility.Type == "CHURCH (SPECIAL EVENTS)" ~ "Church",
+Facility.Type == "Church Kitchen" ~ "Church",
+Facility.Type == "CHURCH KITCHEN" ~ "Church",
+Facility.Type == "CHURCH/AFTER SCHOOL PROGRAM" ~ "Church",
+Facility.Type == "CHURCH/DAY CARE" ~ "Church",
+Facility.Type == "CHURCH/SPECIAL EVENT" ~ "Church",
+Facility.Type == "CHURCH/SPECIAL EVENTS" ~ "Church",
+Facility.Type == "CITY OF CHICAGO COLLEGE" ~ "City of Chicago College",
+Facility.Type == "CLOTHING STORE" ~ "Clothing Store",
+Facility.Type == "coffee" ~ "Coffee Shop",
+Facility.Type == "COFFEE SHOP" ~ "Coffee Shop",
+Facility.Type == "COFFEE CART" ~ "Coffee Cart",
+Facility.Type == "COFFEE KIOSK" ~ "Coffee Shop",
+Facility.Type == "COFFEE ROASTER" ~ "Coffee Shop",
+Facility.Type == "coffee shop" ~ "Coffee Shop",
+Facility.Type == "Coffee shop" ~ "Coffee Shop",
+Facility.Type == "COFFEE SHOP" ~ "Coffee Shop",
+Facility.Type == "COFFEE VENDING MACHINE" ~ "Coffee Vending Machine",
+Facility.Type == "COFFEE/TEA" ~ "Coffee Shop",
+Facility.Type == "COLD/FROZEN FOOD STORAGE" ~ "Cold/Frozen Food Storage",
+Facility.Type == "COLLEGE" ~ "College",
+Facility.Type == "COMMIASARY" ~ "Commissary",
+Facility.Type == "Commissary" ~ "Commissary",
+Facility.Type == "COMMISSARY" ~ "Commissary",
+Facility.Type == "COMMISSARY FOR SOFT SERVE ICE CREAM TRUCKS" ~ "Commissary Ice Cream Trucks",
+Facility.Type == "convenience" ~ "Convenience Store",
+Facility.Type == "CONVENIENCE" ~ "Convenience Store",
+Facility.Type == "convenience store" ~ "Convenience Store",
+Facility.Type == "Convenience Store" ~ "Convenience Store",
+Facility.Type == "CONVENIENCE STORE" ~ "Convenience Store",
+Facility.Type == "convenience/drug store" ~ "Convenience Store",
+Facility.Type == "CONVENIENCE/GAS STATION" ~ "Convenience Store",
+Facility.Type == "CONVENIENT STORE" ~ "Convenience Store",
+Facility.Type == "CONVNIENCE STORE" ~ "Convenience Store",
+Facility.Type == "cooking school" ~ "Culinary School",
+Facility.Type == "COOKING SCHOOL" ~ "Culinary School",
+Facility.Type == "CULINARY ARTS SCHOOL" ~ "Culinary School",
+Facility.Type == "CULINARY CLASS ROOMS" ~ "Culinary School",
+Facility.Type == "CULINARY SCHOOL" ~ "Culinary School",
+Facility.Type == "CUSTOM POULTRY SLAUGHTER" ~ "Poultry Slaughter",
+Facility.Type == "DAY CARE" ~ "Daycare",
+Facility.Type == "DAY CARE 1023" ~ "Daycare 1023",
+Facility.Type == "DAY CARE 2-14" ~ "Daycare 2-14 y/o",
+Facility.Type == "Day Care Combo (1586)" ~ "Daycare 1586",
+Facility.Type == "day spa" ~ "Day Spa",
+Facility.Type == "DAYCARE" ~ "Daycare",
+Facility.Type == "Daycare (2 - 6 Years)" ~ "Daycare 2-6 y/o",
+Facility.Type == "Daycare (2 Years)" ~ "Daycare 2 y/o",
+Facility.Type == "Daycare (Under 2 Years)" ~ "Daycare -2 y/o",
+Facility.Type == "DAYCARE 1586" ~ "Daycare 1586",
+Facility.Type == "DAYCARE 2-6, UNDER 6" ~ "Daycare 2-6 y/o",
+Facility.Type == "DAYCARE 2 YRS TO 12 YRS" ~ "Daycare 2-12 y/o",
+Facility.Type == "DAYCARE 6 WKS-5YRS" ~ "Daycare 6wks-5 y/o",
+Facility.Type == "Daycare Above and Under 2 Years" ~ "Daycare",
+Facility.Type == "DAYCARE COMBO" ~ "Daycare",
+Facility.Type == "Daycare Combo 1586" ~ "Daycare 1586",
+Facility.Type == "Daycare Night" ~ "Daycare Night",
+Facility.Type == "Deli" ~ "Deli",
+Facility.Type == "DELI/GROCERY STORE" ~ "Deli/Grocery",
+Facility.Type == "DINING HALL" ~ "Dining Hall",
+Facility.Type == "DISTRIBUTION CENTER" ~ "Distribution Center",
+Facility.Type == "DISTRIBUTOR" ~ "Distribution Center",
+Facility.Type == "DOLLAR & GROCERY STORE" ~ "Dollar Store/Grocery",
+Facility.Type == "dollar store" ~ "Dollar Store",
+Facility.Type == "Dollar store" ~ "Dollar Store",
+Facility.Type == "DOLLAR STORE" ~ "Dollar Store",
+Facility.Type == "DOLLAR STORE SELLING GROCERY" ~ "Dollar Store/Grocery",
+Facility.Type == "donut shop" ~ "Donut Shop",
+Facility.Type == "DRUG STORE" ~ "Drug Store",
+Facility.Type == "DRUG STORE/GROCERY" ~ "Drug Store/Grocery",
+Facility.Type == "DRUG STORE/W/ FOOD" ~ "Drug Store/Grocery",
+Facility.Type == "drug treatment facility" ~ "Drug Treatment Facility",
+Facility.Type == "DRUG/FOOD STORE" ~ "Drug Store/Grocery",
+Facility.Type == "DRUG/GROCERY STORE" ~ "Drug Store/Grocery",
+Facility.Type == "employee kitchen" ~ "Employee Kitchen",
+Facility.Type == "EVENT SPACE" ~ "Event Venue",
+Facility.Type == "EVENT VENU" ~ "Event Venue",
+Facility.Type == "FARMER'S MARKET" ~ "Farmer's Market",
+Facility.Type == "fish market" ~ "Fish Market",
+Facility.Type == "fitness center" ~ "Fitness Center",
+Facility.Type == "FITNESS CENTER" ~ "Fitness Center",
+Facility.Type == "FITNESS STUDIO" ~ "Fitness Center",
+Facility.Type == "Food Pantry" ~ "Food Pantry",
+Facility.Type == "FOOD PANTRY" ~ "Food Pantry",
+Facility.Type == "FOOD PANTRY/CHURCH" ~ "Food Pantry/Church",
+Facility.Type == "Food Vending Machines" ~ "Food Vending Machines",
+Facility.Type == "FRENCH MARKET SPACE" ~ "French Market Space",
+Facility.Type == "FROZEN DESSERT PUSHCARTS" ~ "Forzen Dessert Pushcarts",
+Facility.Type == "FROZEN DESSERTS DISPENSER-NON-MOTORIZED" ~ "Forzen Dessert Pushcarts",
+Facility.Type == "FROZEN DESSERTS DISPENSER -NON MOTORIZED" ~ "Forzen Dessert Pushcarts",
+Facility.Type == "FURNITURE STORE" ~ "Furniture Store",
+Facility.Type == "GAS" ~ "Gas Station",
+Facility.Type == "gas station" ~ "Gas Station",
+Facility.Type == "Gas station" ~ "Gas Station",
+Facility.Type == "GAS STATION" ~ "Gas Station",
+Facility.Type == "GAS STATION /GROCERY" ~ "Gas Station/Grocery",
+Facility.Type == "GAS STATION /SUBWAY MINI MART." ~ "Gas Station/Minimart",
+Facility.Type == "GAS STATION STORE" ~ "Gas Station",
+Facility.Type == "GAS STATION/ GROCERY STORE" ~ "Gas Station/Grocery",
+Facility.Type == "GAS STATION/FOOD" ~ "Gas Station/Grocery",
+Facility.Type == "GAS STATION/MINI MART" ~ "Gas Station/Minimart",
+Facility.Type == "GAS STATION/RESTAURANT" ~ "Gas Station/Restaurant",
+Facility.Type == "GAS STATION/STORE" ~ "Gas Station/Grocery",
+Facility.Type == "GAS STATION/STORE GROCERY" ~ "Gas Station/Grocery",
+Facility.Type == "GELATO SHOP" ~ "Gelato Shop",
+Facility.Type == "GENERAL STORE" ~ "General Store",
+Facility.Type == "Gift Shop" ~ "Gift Shop",
+Facility.Type == "GIFT/CARD SHOP WITH CANDY" ~ "Gift Shop",
+Facility.Type == "Golden Diner" ~ "Golden Diner",
+Facility.Type == "GOLF COURSE" ~ "Golf Course Concession Stand",
+Facility.Type == "GOLF COURSE CONNCESSION STAND" ~ "Golf Course Concession Stand",
+Facility.Type == "grocery" ~ "Grocery Store",
+Facility.Type == "GROCERY" ~ "Grocery Store",
+Facility.Type == "grocery & restaurant" ~ "Grocery Store/Restaurant",
+Facility.Type == "Grocery & Restaurant" ~ "Grocery Store/Restaurant",
+Facility.Type == "GROCERY & RESTAURANT" ~ "Grocery Store/Restaurant",
+Facility.Type == "GROCERY AND BUTCHER" ~ "Grocery Store/Butcher",
+Facility.Type == "Grocery Store" ~ "Grocery Store",
+Facility.Type == "GROCERY STORE / GAS STATION" ~ "Grocery Store/Gas",
+Facility.Type == "GROCERY STORE/ RESTAURANT" ~ "Grocery Store/Restaurant",
+Facility.Type == "GROCERY STORE/BAKERY" ~ "Grocery Store/Bakery",
+Facility.Type == "GROCERY STORE/COOKING SCHOOL" ~ "Grocery Store/Culinary School",
+Facility.Type == "GROCERY STORE/DELI" ~ "Grocery Store/Deli",
+Facility.Type == "GROCERY STORE/GAS STATION" ~ "Grocery Store/Gas",
+Facility.Type == "GROCERY STORE/TAQUERIA" ~ "Grocery Store/Taqueria",
+Facility.Type == "GROCERY& RESTAURANT" ~ "Grocery Store/Restaurant",
+Facility.Type == "GROCERY(GAS STATION)" ~ "Grocery Store/Gas",
+Facility.Type == "Grocery(Sushi prep)" ~ "Grocery Store/Sushi",
+Facility.Type == "GROCERY/ RESTAURANT" ~ "Grocery Store/Restaurant",
+Facility.Type == "GROCERY/BAKERY" ~ "Grocery Store/Bakery",
+Facility.Type == "grocery/butcher" ~ "Grocery Store/Butcher",
+Facility.Type == "GROCERY/CAFE" ~ "Grocery Store/Cafe",
+Facility.Type == "grocery/dollar store" ~ "Dollar Store/Grocery",
+Facility.Type == "GROCERY/DRUG STORE" ~ "Drug Store/Grocery",
+Facility.Type == "GROCERY/GAS STATION" ~ "Grocery Store/Gas",
+Facility.Type == "GROCERY/LIQUOR" ~ "Grocery Store/Liquor",
+Facility.Type == "GROCERY/LIQUOR STORE" ~ "Grocery Store/Liquor",
+Facility.Type == "GROCERY/RESTAURANT" ~ "Grocery Store/Restaurant",
+Facility.Type == "GROCERY/SERVICE GAS STATION" ~ "Grocery Store/Gas",
+Facility.Type == "GROCERY/TAQUERIA" ~ "Grocery Store/Taqueria",
+Facility.Type == "GROCERY/TAVERN" ~ "Grocery Store/Tavern",
+Facility.Type == "GYM STORE" ~ "Gym Store",
+Facility.Type == "HEALTH CARE STORE" ~ "Health Store",
+Facility.Type == "HEALTH CENTER" ~ "Health Center",
+Facility.Type == "HEALTH CENTER/NUTRITION CLASSES" ~ "Health Center/Nutrition Classes",
+Facility.Type == "HEALTH/ JUICE BAR" ~ "Health /Juice Bar",
+Facility.Type == "Herabalife" ~ "Herbal Shop",
+Facility.Type == "HERBAL" ~ "Herbal Shop",
+Facility.Type == "HERBAL DRINKS" ~ "Herbal Shop",
+Facility.Type == "HERBAL LIFE" ~ "Herbal Shop",
+Facility.Type == "HERBAL LIFE SHOP" ~ "Herbal Shop",
+Facility.Type == "HERBAL MEDICINE" ~ "Herbal Shop",
+Facility.Type == "HERBAL REMEDY" ~ "Herbal Shop",
+Facility.Type == "HERBAL STORE" ~ "Herbal Shop",
+Facility.Type == "HERBALCAL" ~ "Herbal Shop",
+Facility.Type == "HERBALIFE" ~ "Herbal Shop",
+Facility.Type == "Herbalife Nutrition" ~ "Herbal Shop",
+Facility.Type == "HERBALIFE STORE" ~ "Herbal Shop",
+Facility.Type == "HERBALIFE/ZUMBA" ~ "Herbal Shop/Zumba",
+Facility.Type == "HIGH SCHOOL KITCHEN" ~ "High School Kitchen",
+Facility.Type == "HOOKA BAR" ~ "Hooka Bar",
+Facility.Type == "hooka lounge" ~ "Hooka Bar",
+Facility.Type == "Hospital" ~ "Hospital",
+Facility.Type == "HOSTEL" ~ "Hostel",
+Facility.Type == "HOT DOG CART" ~ "Hot Dog Cart",
+Facility.Type == "HOT DOG STATION" ~ "Hot Dog Cart",
+Facility.Type == "HOTEL" ~ "Hotel",
+Facility.Type == "Ice cream" ~ "Ice Cream Shop",
+Facility.Type == "ICE CREAM" ~ "Ice Cream Shop",
+Facility.Type == "ICE CREAM PARLOR" ~ "Ice Cream Shop",
+Facility.Type == "ICE CREAM SHOP" ~ "Ice Cream Shop",
+Facility.Type == "Illegal Vendor" ~ "Illegal Vendor",
+Facility.Type == "incubator" ~ "Incubator",
+Facility.Type == "Internet Cafe" ~ "Internet Cafe",
+Facility.Type == "JUICE AND SALAD BAR" ~ "Juice/Salad Bar",
+Facility.Type == "JUICE BAR" ~ "Juice Bar",
+Facility.Type == "Kids Cafe'" ~ "Kids Bar",
+Facility.Type == "KIDS CAFE" ~ "Kids Bar",
+Facility.Type == "KIOSK " ~ "Kiosk",
+Facility.Type == "KITCHEN DEMO" ~ "Kitchen Demo",
+Facility.Type == "Laundromat" ~ "Laundromat",
+Facility.Type == "LAUNDROMAT" ~ "Laundromat",
+Facility.Type == "LINITED BUSINESS" ~ "Limited Business",
+Facility.Type == "LIQOUR BREWERY TASTING" ~ "Liquor Tasting",
+Facility.Type == "Liquor" ~ "Liquor Store",
+Facility.Type == "LIQUOR CONSUMPTION ON PREMISES." ~ "Liquor on Premises",
+Facility.Type == "LIQUOR STORE" ~ "Liquor Store",
+Facility.Type == "LIQUOR/COFFEE KIOSK" ~ "Liquor/Coffee Store",
+Facility.Type == "LIQUORE STORE/BAR" ~ "Liquor Store/Bar",
+Facility.Type == "live butcher" ~ "Live Butcher",
+Facility.Type == "Live Poultry" ~ "Live Poultry",
+Facility.Type == "LIVE POULTRY" ~ "Live Poultry",
+Facility.Type == "Long-Term Care" ~ "Long-Term Care",
+Facility.Type == "Long-Term Care Facility" ~ "Long-Term Care",
+Facility.Type == "Long Term Care" ~ "Long-Term Care",
+Facility.Type == "Long Term Care Facility" ~ "Long-Term Care",
+Facility.Type == "LONG TERM CARE FACILITY" ~ "Long-Term Care",
+Facility.Type == "Lounge" ~ "Lounge",
+Facility.Type == "LOUNGE/BANQUET HALL" ~ "Lounge/Banquet",
+Facility.Type == "MAIN KITCHEN" ~ "Main Kitchen",
+Facility.Type == "MASSAGE BAR" ~ "Massage Bar",
+Facility.Type == "Meat Market" ~ "Meat Market",
+Facility.Type == "meat packing" ~ "Meat Packing",
+Facility.Type == "MEXICAN CANDY STORE" ~ "Mexican Candy Store",
+Facility.Type == "MFD TRUCK" ~ "MFD Truck",
+Facility.Type == "MOBIL FOOD 1315" ~ "Mobile Food Cart",
+Facility.Type == "MOBILE DESSERT CART" ~ "Mobile Dessert Cart",
+Facility.Type == "MOBILE DESSERT VENDOR" ~ "Mobile Dessert Vendor",
+Facility.Type == "MOBILE DESSERTS VENDOR" ~ "Mobile Dessert Vendor",
+Facility.Type == "MOBILE FOOD" ~ "Mobile Food Cart",
+Facility.Type == "MOBILE FOOD DESSERTS VENDOR" ~ "Mobile Food Cart",
+Facility.Type == "Mobile Food Dispenser" ~ "Mobile Food Dispenser",
+Facility.Type == "Mobile Food Preparer" ~ "Mobile Food Preparer",
+Facility.Type == "MOBILE FOOD TRUCK" ~ "Food Truck",
+Facility.Type == "Mobile Frozen Dessert Disp/Non-motorized" ~ "Mobile Frozen Dessert Cart",
+Facility.Type == "Mobile Frozen Dessert Dispenser_non Motorized." ~ "Mobile Frozen Dessert Cart",
+Facility.Type == "Mobile frozen dessert vendor" ~ "Mobile Frozen Dessert Vendor",
+Facility.Type == "MOBILE FROZEN DESSERT VENDOR" ~ "Mobile Frozen Dessert Vendor",
+Facility.Type == "MOBILE FROZEN DESSERTS DISPENSER-NON- MOTORIZED" ~ "Mobile Frozen Dessert Cart",
+Facility.Type == "MOBILE FROZEN DESSERTS DISPENSER-NON-MOTOR" ~ "Mobile Frozen Dessert Cart",
+Facility.Type == "MOBILE FROZEN DESSERTS DISPENSER-NON-MOTORIZED" ~ "Mobile Frozen Dessert Cart",
+Facility.Type == "Mobile Frozen Desserts Vendor" ~ "Mobile Frozen Dessert Vendor",
+Facility.Type == "MOBILE FROZEN DESSERTS VENDOR" ~ "Mobile Frozen Dessert Vendor",
+Facility.Type == "Mobile Prepared Food Vendor" ~ "Mobile Food Vendor",
+Facility.Type == "MOBILPREPARED FOOD VENDOR" ~ "Mobile Food Vendor",
+Facility.Type == "MOVIE THEATER" ~ "Movie Theater",
+Facility.Type == "MOVIE THEATRE" ~ "Movie Theater",
+Facility.Type == "Museum/Gallery" ~ "Museum/Gallery",
+Facility.Type == "MUSIC VENUE" ~ "Music Venue",
+Facility.Type == "NAIL SHOP" ~ "Nail Shop",
+Facility.Type == "Navy Pier Kiosk" ~ "Navy Pier Kiosk",
+Facility.Type == "newsstand" ~ "News Stand",
+Facility.Type == "NEWSSTAND" ~ "News Stand",
+Facility.Type == "night club" ~ "Night Club",
+Facility.Type == "NIGHT CLUB" ~ "Night Club",
+Facility.Type == "NON-FOR PROFIT BASEMENT KIT" ~ "Not-For-Profit Basement Kit",
+Facility.Type == "NON -PROFIT" ~ "Non-Profit",
+Facility.Type == "NORTHERLY ISLAND" ~ "Northerly Island",
+Facility.Type == "NOT-FOR-PROFIT CLUB" ~ "Not-For-Profit Club",
+Facility.Type == "NOT FOR PROFIT" ~ "Non-Profit",
+Facility.Type == "NP-KIOSK" ~ "NP Kiosk",
+Facility.Type == "NURSING HOME" ~ "Nursing Home",
+Facility.Type == "Nutrition Store" ~ "Nutrition Store",
+Facility.Type == "NUTRITION/HERBALIFE" ~ "Herbal Shop",
+Facility.Type == "O'Hare Kiosk" ~ "O'Hare Kiosk",
+Facility.Type == "Other" ~ "Other",
+Facility.Type == "PACKAGED FOOD DISTRIBUTION" ~ "Packaged Food Distribution",
+Facility.Type == "PACKAGED HEALTH FOODS" ~ "Packaged Health Foods",
+Facility.Type == "PACKAGED LIQUOR" ~ "Packaged Liquor",
+Facility.Type == "PALETERIA" ~ "Paleteria/Ice Cream",
+Facility.Type == "PALETERIA /ICECREAM SHOP" ~ "Paleteria/Ice Cream",
+Facility.Type == "PANTRY" ~ "Pantry",
+Facility.Type == "PASTRY school" ~ "Pastry School",
+Facility.Type == "PEDDLER" ~ "Peddler",
+Facility.Type == "PHARMACY" ~ "Drug Store",
+Facility.Type == "pharmacy/grocery" ~ "Drug Store/Grocery",
+Facility.Type == "Pool" ~ "Pool",
+Facility.Type == "Pop-Up Establishment Host-Tier II" ~ "Pop-Up Establishment Host-Tier II",
+Facility.Type == "Pop-Up Food Establishment User-Tier II" ~ "Pop-Up Establishment User-Tier II",
+Facility.Type == "POPCORN CORN" ~ "Popcorn Shop",
+Facility.Type == "POPCORN SHOP" ~ "Popcorn Shop",
+Facility.Type == "Poultry Slaughter" ~ "Poultry Slaughter",
+Facility.Type == "PRE PACKAGED" ~ "Prepackaged Food",
+Facility.Type == "PREP INSIDE SCHOOL" ~ "Prep Inside School",
+Facility.Type == "PREPACAKAGED FOODS" ~ "Prepackaged Food",
+Facility.Type == "PREPACKAGE MEAL DISTRIBUTOR (1006 Retail)" ~ "Prepackaged Meal Distributor",
+Facility.Type == "Private School" ~ "Private School",
+Facility.Type == "PRIVATE SCHOOL" ~ "Private School",
+Facility.Type == "PRODUCE STAND" ~ "Produce Stand",
+Facility.Type == "PRODUCE VENDOR" ~ "Produce Vendor",
+Facility.Type == "PROTEIN SHAKE BAR" ~ "Protein Shake Bar",
+Facility.Type == "PUBLIC SHCOOL" ~ "Public School",
+Facility.Type == "PUSH CARTS" ~ "Push Cart",
+Facility.Type == "PUSHCART" ~ "Push Cart",
+Facility.Type == "REGULATED BUSINESS" ~ "Regulated Business",
+Facility.Type == "REHAB CENTER" ~ "Rehab Center",
+Facility.Type == "religious" ~ "Religious",
+Facility.Type == "REPACKAGING PLANT" ~ "Repackaging Plant",
+Facility.Type == "REST/GROCERY" ~ "Rest/Grocery",
+Facility.Type == "Rest/GYM" ~ "Rest/Gym",
+Facility.Type == "REST/ROOFTOP" ~ "Rest/Rooftop",
+Facility.Type == "Restaurant" ~ "Restaurant",
+Facility.Type == "RESTAURANT AND LIQUOR" ~ "Restaurant/Liquor",
+Facility.Type == "Restaurant(protein shake bar)" ~ "Restaurant/Protein Shake Bar",
+Facility.Type == "RESTAURANT.BANQUET HALLS" ~ "Restaurant/Banquet",
+Facility.Type == "RESTAURANT/BAKERY" ~ "Restaurant/Bakery",
+Facility.Type == "RESTAURANT/BAR" ~ "Restaurant/Bar",
+Facility.Type == "RESTAURANT/BAR/THEATER" ~ "Restaurant/Bar/Theater",
+Facility.Type == "RESTAURANT/GAS STATION" ~ "Restaurant/Gas",
+Facility.Type == "RESTAURANT/GROCERY" ~ "Restaurant/Grocery",
+Facility.Type == "RESTAURANT/GROCERY STORE" ~ "Restaurant/Grocery",
+Facility.Type == "RESTAURANT/HOSPITAL" ~ "Restaurant/Hospital",
+Facility.Type == "RESTAURANT/LIQUOR" ~ "Restaurant/Liquor",
+Facility.Type == "RESTUARANT AND BAR" ~ "Restaurant/Bar",
+Facility.Type == "RETAIL" ~ "Retail",
+Facility.Type == "RETAIL FOOD/GAS STATION" ~ "Gas Station",
+Facility.Type == "RETAIL STORE" ~ "Retail",
+Facility.Type == "RETAIL STORE OFFERS COOKING CLASSES" ~ "Retail/Cooking Classes",
+Facility.Type == "RETAIL WINE/WINE BAR" ~ "Wine Bar",
+Facility.Type == "RIVERWALK" ~ "Riverwalk",
+Facility.Type == "RIVERWALK CAFE" ~ "Riverwalk Cafe",
+Facility.Type == "ROOF TOP" ~ "Rooftop",
+Facility.Type == "ROOF TOPS" ~ "Rooftop",
+Facility.Type == "ROOFTOP" ~ "Rooftop",
+Facility.Type == "ROOFTOP PATIO" ~ "Rooftop Patio",
+Facility.Type == "ROOFTOP/RESTAURANT" ~ "Rooftop/Restaurant",
+Facility.Type == "ROOFTOPS" ~ "Rooftop",
+Facility.Type == "ROOM SERVICE" ~ "Room Service",
+Facility.Type == "School" ~ "School",
+Facility.Type == "SCHOOL" ~ "School",
+Facility.Type == "school cafeteria" ~ "School",
+Facility.Type == "School Cafeteria" ~ "School",
+Facility.Type == "SENIOR DAY CARE" ~ "Adult Daycare",
+Facility.Type == "SERVICE BAR/THEATRE" ~ "Service Bar/Theater",
+Facility.Type == "SERVICE GAS STATION" ~ "Gas Station",
+Facility.Type == "SHAKES/TEAS" ~ "Shakes/Teas",
+Facility.Type == "Shared Kitchen" ~ "Shared Kitchen",
+Facility.Type == "Shared Kitchen User (Long Term)" ~ "Shared Kitchen (Long-Term)",
+Facility.Type == "SHARED KITCHEN USER (LONG TREM)" ~ "Shared Kitchen (Long-Term)",
+Facility.Type == "Shared Kitchen User (Short Term)" ~ "Shared Kitchen (Short-Term)",
+Facility.Type == "Shelter" ~ "Shelter",
+Facility.Type == "SHSHI COUNTER" ~ "Sushi Counter",
+Facility.Type == "Shuffleboard Club with Bar" ~ "Shuffleboard Club with Bar",
+Facility.Type == "SLAUGHTER HOUSE/ GROCERY" ~ "Slaughter House/Grocery",
+Facility.Type == "SMOKEHOUSE" ~ "Smokehouse",
+Facility.Type == "smoothie bar" ~ "Smoothie Bar",
+Facility.Type == "snack shop" ~ "Snack Shop",
+Facility.Type == "Social Club" ~ "Social Club",
+Facility.Type == "SOCIAL CLUB" ~ "Social Club",
+Facility.Type == "SOUP KITCHEN" ~ "Soup Kitchen",
+Facility.Type == "SPA" ~ "Spa",
+Facility.Type == "Special Event" ~ "Special Event",
+Facility.Type == "STADIUM" ~ "Stadium",
+Facility.Type == "STORE" ~ "Store",
+Facility.Type == "SUMMER FEEDING" ~ "Summer Feeding",
+Facility.Type == "SUMMER FEEDING PREP AREA" ~ "Summer Feeding Prep",
+Facility.Type == "SUPPORTIVE LIVING" ~ "Supportive Living",
+Facility.Type == "SUPPORTIVE LIVING FACILITY	" ~ "Supportive Living",
+Facility.Type == "TAP room/tavern/liquor store" ~ "Tavern",
+Facility.Type == "tavern" ~ "Tavern",
+Facility.Type == "Tavern" ~ "Tavern",
+Facility.Type == "TAVERN" ~ "Tavern",
+Facility.Type == "TAVERN-LIQUOR" ~ "Tavern",
+Facility.Type == "TAVERN GRILL" ~ "Tavern/Restaurant",
+Facility.Type == "TAVERN/1006" ~ "Tavern",
+Facility.Type == "Tavern/Bar" ~ "Tavern",
+Facility.Type == "TAVERN/LIQUOR" ~ "Tavern",
+Facility.Type == "tavern/restaurant" ~ "Tavern/Restaurant",
+Facility.Type == "TAVERN/RESTAURANT" ~ "Tavern/Restaurant",
+Facility.Type == "TEA BREWING" ~ "Tea Brewing",
+Facility.Type == "TEA STORE" ~ "Tea Store",
+Facility.Type == "TEACHING SCHOOL" ~ "Teaching School",
+Facility.Type == "TEMPORARY KIOSK" ~ "Kiosk",
+Facility.Type == "TENT RSTAURANT" ~ "Tent Restaurant",
+Facility.Type == "theater" ~ "Theater",
+Facility.Type == "THEATER" ~ "Theater",
+Facility.Type == "Theater & Restaurant" ~ "Restaurant/Theater",
+Facility.Type == "THEATER/BAR" ~ "Theater/Bar",
+Facility.Type == "THEATRE" ~ "Theater",
+Facility.Type == "TOBACCO STORE" ~ "Tobacco Store",
+Facility.Type == "TRUCK" ~ "Truck",
+Facility.Type == "UNIVERSITY CAFETERIA" ~ "University Cafeteria",
+Facility.Type == "unlicensed facility" ~ "Unlicensed Facility",
+Facility.Type == "UNLICENSED FACILITY" ~ "Unlicensed Facility",
+Facility.Type == "UNUSED STORAGE" ~ "Unused Storage",
+Facility.Type == "URBAN FARM" ~ "Urban Farm",
+Facility.Type == "VENDING MACHINE" ~ "Vending Machine",
+Facility.Type == "VFW HALL" ~ "VFW Hall",
+Facility.Type == "video store" ~ "Video Store",
+Facility.Type == "warehouse" ~ "Warehouse",
+Facility.Type == "WAREHOUSE" ~ "Warehouse",
+Facility.Type == "watermelon house" ~ "Watermelon House",
+Facility.Type == "weight loss program" ~ "Weight Loss Program",
+Facility.Type == "WEIGHT LOSS PROGRAM" ~ "Weight Loss Program",
+Facility.Type == "Wholesale" ~ "Wholesale",
+Facility.Type == "WHOLESALE & RETAIL" ~ "Wholesale Retail",
+Facility.Type == "WHOLESALE BAKERY" ~ "Wholesale Bakery",
+Facility.Type == "WINE STORE" ~ "Wine Store",
+Facility.Type == "WINE TASTING BAR" ~ "Wine Tasting Bar",
+Facility.Type == "Wrigley Roof Top" ~ "Rooftop",
+Facility.Type == "WRIGLEY ROOFTOP" ~ "Rooftop",
+Facility.Type == "youth housing" ~ "Youth Housing"))
+```
+
+### Double-check Facility Type typos
+
+This chunk repeats what our earlier chunk did and groups together
+different types of facilities, along with a summary showing the count of
+each. This way, we can make sure that our previous typo fixes worked.
+Seeing as the tibble has shrunk, and by doing a look-over, we can see
+that the errors have been fixed. Furthermore, we now have case
+consistency.
+
+```{r Check Facility Type typos again}
+food.inspections.clean %>% group_by(Facility.Type) %>%
+  summarize(n = n(), na.rm=TRUE)
+```
+
+### Check Results for typos
+
+This chunk groups together observations by their results and displays
+the number of each result. Like earlier, we use this so we can easily
+find typos. This command also uses na.rm set to TRUE so that we can
+exclude the missing values. Looking at the output, we can see there are
+7 possible results. There doesn't appear to be any spelling errors.
+
+```{r Results typos}
+food.inspections.clean %>% group_by(Results) %>%
+  summarize(n = n(), na.rm=TRUE)
+```
+
+### Check Names for typos
+
+This chunk groups together observations by their names and displays the
+number of each name. Like earlier, we use this so we can easily find
+typos. This command also uses na.rm set to TRUE so that we can exclude
+the missing values. Looking at the output, we can see there are 25,501
+names used.
+
+```{r Names typos}
+food.inspections.clean %>% group_by(AKA.Name) %>%
+  summarize(n = n(), na.rm=TRUE)
+```
+
+### Arrange Risk observations
+
+This chunk defines a proper arrangement of the ranks within the Risk
+variable.
+
+```{r arrange Risk}
+food.inspections.clean <- food.inspections.clean %>% 
+  arrange(match(Risk, c("Risk 1 (High)", "Risk 2 (Medium)", "Risk 3 (Low)")))
+```
+
+### Write file
+
+This chunk of code takes our cleaned data set and converts it into a new
+.csv file that can be imported into other programs to analyze by using
+the write.csv function and giving the file a name.
+
+```{r}
+#don't remove hashtag until fully done
+#write.csv(food.inspections.clean, file = "food.inspections.clean.csv")
+```

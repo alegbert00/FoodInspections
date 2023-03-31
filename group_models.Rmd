@@ -1,0 +1,35 @@
+---
+title: "Modeling Data"
+author: "Manda Egbert, Stephanie Renasco, Tyler Maull"
+date: "2022-11-14"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+```
+
+### Load and Import
+This chunk loads multiple packages to aid in organizing and modeling our data. It also uses read.csv to import our cleaned data set. 
+```{r}
+library(tidyverse)
+library(modelr)
+library(cvTools)
+library(glmnet)
+set.seed(123)
+
+food.inspections.clean <- read.csv("Y:/Stat 220/Group Project/food.inspections.clean.csv")
+```
+
+```{r}
+food_modelall <- lm(Results ~ ., data=food.inspections)
+summary(food_modelall)
+coef(food_modelall)
+```
+
+### Stacked Bar Graphs (cat vs cat)
+```{r}
+ggplot(data = food.inspections.clean) +
+  geom_bar(mapping = aes(x=Risk, fill=Results))
+```
